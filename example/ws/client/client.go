@@ -9,8 +9,8 @@ import (
 
 	"time"
 
-	"bitbucket.org/mikehouston/capngopher/example/service"
-	"bitbucket.org/mikehouston/capngopher/ws/client"
+	"github.com/kothar/capngopher/example/service"
+	"github.com/kothar/capngopher/ws/client"
 	"bitbucket.org/mikehouston/webconsole"
 )
 

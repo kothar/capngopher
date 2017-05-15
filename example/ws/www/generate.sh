@@ -1,4 +1,4 @@
 #!/bin/bash
 
-gopherjs build -m bitbucket.org/mikehouston/capngopher/example/ws/client
+gopherjs build -m github.com/kothar/capngopher/example/ws/client
 

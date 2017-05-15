@@ -7,8 +7,8 @@ import (
 	"golang.org/x/net/websocket"
 	"zombiezen.com/go/capnproto2/rpc"
 
-	"bitbucket.org/mikehouston/capngopher/example/service"
-	"bitbucket.org/mikehouston/capngopher/ws/server"
+	"github.com/kothar/capngopher/example/service"
+	"github.com/kothar/capngopher/ws/server"
 )
 
 type pingerServer struct {

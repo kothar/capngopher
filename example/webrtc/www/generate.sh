@@ -1,4 +1,4 @@
 #!/bin/bash
 
-gopherjs build -m bitbucket.org/mikehouston/capngopher/example/webrtc/client
+gopherjs build -m github.com/kothar/capngopher/example/webrtc/client
 
