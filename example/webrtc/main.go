@@ -4,13 +4,14 @@ import (
 	"log"
 	"net/http"
 
+	"golang.org/x/net/websocket"
 	"zombiezen.com/go/capnproto2/rpc"
 
-	"golang.org/x/net/websocket"
-
-	"bitbucket.org/mikehouston/capngopher/ws/example/service"
+	"bitbucket.org/mikehouston/capngopher/example/service"
 	"bitbucket.org/mikehouston/capngopher/ws/server"
 )
+
+var clients []string
 
 type pingerServer struct {
 }
@@ -21,6 +22,7 @@ func (s *pingerServer) Ping(p service.Pinger_ping) error {
 		return err
 	}
 
+	log.Printf("Ping: %s\n", msg)
 	if err := p.Results.SetMsg("Ping: " + msg); err != nil {
 		return err
 	}
@@ -66,7 +68,7 @@ func main() {
 		http.ServeFile(w, r, "www/client.js")
 	})
 
-	listen := "0.0.0.0:8080"
+	listen := "0.0.0.0:8081"
 	log.Printf("Serving on http://%s\n", listen)
 	if err := http.ListenAndServe(listen, nil); err != nil {
 		panic("ListenAndServe: " + err.Error())

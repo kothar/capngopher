@@ -7,8 +7,10 @@ import (
 	"github.com/gopherjs/gopherjs/js"
 	"zombiezen.com/go/capnproto2/rpc"
 
+	"time"
+
+	"bitbucket.org/mikehouston/capngopher/example/service"
 	"bitbucket.org/mikehouston/capngopher/ws/client"
-	"bitbucket.org/mikehouston/capngopher/ws/example/service"
 	"bitbucket.org/mikehouston/webconsole"
 )
 
@@ -42,7 +44,7 @@ func main() {
 	pinger := service.Pinger{Client: conn.Bootstrap(ctx)}
 
 	response, err := pinger.Ping(ctx, func(p service.Pinger_ping_Params) error {
-		p.SetMsg("Hello World")
+		p.SetMsg("Hello World over websockets")
 		return nil
 	}).Struct()
 	if err != nil {
@@ -54,4 +56,9 @@ func main() {
 		log.Fatal(err)
 	}
 	log.Printf("Received ping response: %s", msg)
+
+	log.Printf("Waiting 2s...")
+	<-time.After(time.Second * 2)
+
+	log.Printf("Exiting")
 }
