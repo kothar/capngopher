@@ -1,11 +1,13 @@
 package main
 
 import (
+	"encoding/json"
 	"log"
 	"net/http"
+	"time"
 )
 
-var clients []string
+var peers = make(map[string]time.Time)
 
 func main() {
 
@@ -18,6 +20,24 @@ func main() {
 	})
 	http.HandleFunc("/client.js.map", func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, "www/client.js.map")
+	})
+
+	// Get list of peers
+	http.HandleFunc("/register", func(w http.ResponseWriter, r *http.Request) {
+		peerID := r.FormValue("id")
+		if peerID == "" {
+			http.Error(w, "No ID specified", http.StatusBadRequest)
+			return
+		}
+
+		json, err := json.Marshal(peers)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Write(json)
+
+		peers[peerID] = time.Now()
 	})
 
 	listen := "0.0.0.0:8081"

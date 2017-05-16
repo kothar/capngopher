@@ -11,24 +11,7 @@ import (
 	"github.com/kothar/capngopher/ws/server"
 )
 
-type pingerServer struct {
-}
-
-func (s *pingerServer) Ping(p service.Pinger_ping) error {
-	msg, err := p.Params.Msg()
-	if err != nil {
-		return err
-	}
-
-	log.Printf("Ping: %s\n", msg)
-	if err := p.Results.SetMsg("Ping: " + msg); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func serve(s *pingerServer, listener *server.WebsocketListener) {
+func serve(s *service.PingerServer, listener *server.WebsocketListener) {
 	for {
 		t, err := listener.Accept()
 		if err != nil {
@@ -54,7 +37,7 @@ func main() {
 	// Init websocket listener
 	listener := server.NewListener()
 
-	s := &pingerServer{}
+	s := &service.PingerServer{}
 	go serve(s, listener)
 
 	// Set up HTTP handlers

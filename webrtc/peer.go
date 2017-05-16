@@ -19,10 +19,6 @@ func (err *PeerError) Error() string {
 	return "[" + err.Type + "] " + err.o.String()
 }
 
-type PeerListener struct {
-	peer *Peer
-}
-
 type PeerConfig struct {
 	o     *js.Object
 	ID    string `js:"id"`
@@ -71,12 +67,16 @@ func NewPeer(config *PeerConfig) *Peer {
 
 	peer.onOpen = make(chan struct{})
 	o.Call("on", "open", func(id string) {
-		close(peer.onOpen)
-		peer.onOpen = nil
+		go func() {
+			close(peer.onOpen)
+			peer.onOpen = nil
+		}()
 	})
 
 	o.Call("on", "error", func(err *PeerError) {
-		log.Println("Peer:", err)
+		go func() {
+			log.Println("Peer:", err)
+		}()
 	})
 
 	return peer
@@ -90,8 +90,38 @@ func (p *Peer) ID() (string, error) {
 	return p.id, nil
 }
 
+type PeerListener struct {
+	peer      *Peer
+	onConnect chan *PeerConnection
+}
+
+func (p *Peer) Listen() (*PeerListener, error) {
+
+	l := &PeerListener{
+		peer:      p,
+		onConnect: make(chan *PeerConnection),
+	}
+
+	p.o.Call("on", "connection", func(conn *js.Object) {
+		c := newPeerConnection(conn)
+		log.Println("Received connection from remote peer ", c.Peer)
+		l.onConnect <- c
+	})
+
+	return l, nil
+}
+
+func (l *PeerListener) Accept() (rpc.Transport, error) {
+	c := <-l.onConnect
+	log.Println("Accepted connection from remote peer ", c.Peer)
+	t := rpc.StreamTransport(c)
+	return t, nil
+}
+
 type PeerConnection struct {
 	o *js.Object
+
+	Peer string `js:"peer"`
 
 	status  string
 	onReady chan struct{}
@@ -105,60 +135,85 @@ type PeerConnection struct {
 
 func (p *Peer) Connect(remoteID string) (rpc.Transport, error) {
 	conn := p.o.Call("connect", remoteID)
+	log.Println("Connecting to remote peer ", remoteID)
+
+	c := newPeerConnection(conn)
+	t := rpc.StreamTransport(c)
+
+	return t, nil
+}
+
+func newPeerConnection(conn *js.Object) *PeerConnection {
 	c := &PeerConnection{
 		o: conn,
 	}
 
 	c.onData = make(chan []byte)
-	c.onReady = make(chan struct{})
 	c.onErr = make(chan error)
+	c.onReady = make(chan struct{})
 
 	go func() {
 		// TODO hook the peer errors and look for peer unavailable messages
 		<-time.After(time.Second * 5)
 		if c.onReady != nil && c.onErr != nil {
-			c.err = errors.New("Connection to " + remoteID + " timed out")
+			c.err = errors.New("Connection to " + c.Peer + " timed out")
 
-			c.onErr <- c.err
-			close(c.onErr)
+			onErr := c.onErr
 			c.onErr = nil
-
-			close(c.onReady)
-			c.onReady = nil
+			log.Println("Marked connection error")
+			onErr <- c.err
+			close(onErr)
 		}
 	}()
 
 	conn.Call("on", "open", func() {
-		log.Println("open")
-		c.status = "open"
-		c.onReady <- struct{}{}
-		close(c.onReady)
-		c.onReady = nil
+		go func() {
+			log.Println("Connection to " + c.Peer + " open")
+			c.status = "open"
+
+			onReady := c.onReady
+			c.onReady = nil
+			log.Println("Marked connection as ready")
+			onReady <- struct{}{}
+			close(onReady)
+		}()
 	})
 	conn.Call("on", "close", func() {
-		log.Println("close")
-		c.status = "closed"
-		close(c.onReady)
-		c.onReady = nil
-	})
-	conn.Call("on", "data", func(data []byte) { c.onData <- data })
-	conn.Call("on", "error", func(err *PeerError) {
-		log.Println("Conn:", err.Type)
-		c.err = err
+		go func() {
+			log.Println("Connection to " + c.Peer + " closed")
+			c.status = "closed"
 
-		if c.onErr != nil {
-			c.onErr <- c.err
-			close(c.onErr)
+			c.err = errors.New("Closed")
+			onErr := c.onErr
 			c.onErr = nil
+			log.Println("Marked connection as closed")
+			onErr <- c.err
+			close(onErr)
+		}()
+	})
+	conn.Call("on", "data", func(data *js.Object) {
+		go func() {
+			bytes := js.Global.Get("Uint8Array").New(data).Interface().([]byte)
+			log.Printf("Received %d bytes from %s: %v", len(bytes), c.Peer, bytes)
+			c.onData <- bytes
+		}()
+	})
+	conn.Call("on", "error", func(err *PeerError) {
+		go func() {
+			log.Println("Conn:", err.Type)
+			c.err = err
 
-			close(c.onReady)
-			c.onReady = nil
-		}
+			if c.onErr != nil {
+				onErr := c.onErr
+				c.onErr = nil
+				log.Println("Marked connection error")
+				onErr <- c.err
+				close(onErr)
+			}
+		}()
 	})
 
-	t := rpc.StreamTransport(c)
-
-	return t, nil
+	return c
 }
 
 func (c *PeerConnection) Read(p []byte) (n int, err error) {
@@ -177,12 +232,13 @@ func (c *PeerConnection) Read(p []byte) (n int, err error) {
 	}
 
 	if remaining > 0 {
-		n := len(p)
+		n = len(p)
 		if remaining < n {
 			n = remaining
 		}
 
 		copy(p[:n], c.buffer[:n])
+		log.Printf("Read %d bytes: %v", n, p[:n])
 		c.buffer = c.buffer[n:]
 	}
 
@@ -195,16 +251,17 @@ func (c *PeerConnection) Write(p []byte) (n int, err error) {
 	}
 
 	if c.onReady != nil {
-		log.Println("Waiting for channel to connect")
+		log.Println("Waiting for channel " + c.Peer + " to connect")
 		select {
 		case <-c.onReady:
-			log.Println("Connected")
+			log.Println("Connected to " + c.Peer + ": writing")
 		case err = <-c.onErr:
 			return 0, err
 		}
 	}
 
 	c.o.Call("send", p)
+	log.Printf("Sent %d bytes", len(p))
 	return len(p), c.err
 }
 
