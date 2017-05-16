@@ -194,7 +194,6 @@ func newPeerConnection(conn *js.Object) *PeerConnection {
 	conn.Call("on", "data", func(data *js.Object) {
 		go func() {
 			bytes := js.Global.Get("Uint8Array").New(data).Interface().([]byte)
-			log.Printf("Received %d bytes from %s: %v", len(bytes), c.Peer, bytes)
 			c.onData <- bytes
 		}()
 	})
@@ -238,7 +237,6 @@ func (c *PeerConnection) Read(p []byte) (n int, err error) {
 		}
 
 		copy(p[:n], c.buffer[:n])
-		log.Printf("Read %d bytes: %v", n, p[:n])
 		c.buffer = c.buffer[n:]
 	}
 
@@ -260,8 +258,7 @@ func (c *PeerConnection) Write(p []byte) (n int, err error) {
 		}
 	}
 
-	c.o.Call("send", p)
-	log.Printf("Sent %d bytes", len(p))
+	c.o.Call("send", js.NewArrayBuffer(p))
 	return len(p), c.err
 }
 
