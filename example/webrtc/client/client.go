@@ -5,17 +5,16 @@ import (
 	"log"
 	"time"
 
+	"bitbucket.org/mikehouston/webconsole"
 	"zombiezen.com/go/capnproto2/rpc"
 
 	"github.com/kothar/capngopher/example/service"
 	"github.com/kothar/capngopher/webrtc"
 )
 
-// "bitbucket.org/mikehouston/webconsole"
-
-// func init() {
-// 	webconsole.Enable()
-// }
+func init() {
+	webconsole.Enable()
+}
 
 func main() {
 	// Get the current host
@@ -24,7 +23,12 @@ func main() {
 	// protocol := location.Get("protocol")
 
 	// Init webrtc peer
-	peer := webrtc.NewPeer(webrtc.NewPeerConfig(webrtc.WithKey("znaqnunoxaqt1emi")))
+	log.Printf("Connecting to PeerJS broker")
+	peer := webrtc.NewPeer(webrtc.NewPeerConfig(
+		webrtc.WithKey("znaqnunoxaqt1emi"),
+		webrtc.WithDebug(3),
+	))
+
 	id, err := peer.ID()
 	if err != nil {
 		log.Fatal(err)
@@ -52,7 +56,7 @@ func main() {
 			return nil
 		}).Struct()
 		if err != nil {
-			log.Fatal(err)
+			log.Fatal("Failed to send ping: ", err)
 		}
 
 		msg, err := response.Msg()
